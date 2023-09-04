@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>mapdaohang</title>
+    <script type="text/javascript">
+        window._AMapSecurityConfig = {
+            securityJsCode: '89121be8a6adc7c664aafb48d6d6015c',
+        }
+    </script>
+    <script type="text/javascript"
+        src="https://webapi.amap.com/maps?v=1.4.15&key=8be334a2012ead807e940401443410bb&plugin=AMap.PlaceSearch,AMap.InfoWindow,AMap.GeoJSON,AMap.MoveAnimation">
+        </script>
+    <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css" />
+    <script src="https://a.amap.com/jsapi_demos/static/demo-center/js/demoutils.js"></script>
+    <script type="text/javascript" src="https://cache.amap.com/lbs/static/addToolbar.js"></script>
+    <style>
+html,
+body,
+#container {
+  width: 100%;
+  height: 100%;
+}
+.input-card{
+    bottom: 3rem;
+    right: 72rem;
+}
+#panel {
+  position: fixed;
+  background-color: white;
+  max-height: 90%;
+  overflow-y: auto;
+  top: 10px;
+  right: 10px;
+  width: 280px;
+}
+
+#panel .amap-call {
+  background-color: #009cf9;
+  border-top-left-radius: 4px;
+  border-top-right-radius: 4px;
+}
+
+#panel .amap-lib-driving {
+  border-bottom-left-radius: 4px;
+  border-bottom-right-radius: 4px;
+  overflow: hidden;
+}
+    </style>
+</head>
+
+<body>
+    <div id="container" class="map"></div>
+    
+    <div id="panel"></div>
+    <div class="info" style="right: 90rem">点击地图标注热门地点</div>
+    <div class="input-card" style="width:10rem;">
+        <h4>推荐游览路线</h4>
+        <div class="input-item">
+            <label for="start">起点：</label>
+            <input type="text" id="start" placeholder="请输入起点">
+        </div>
+        <div class="input-item">
+            <label for="end">终点：</label>
+            <input type="text" id="end" placeholder="请输入终点">
+        </div>
+        <div class="input-item">
+            <button class="btn" onclick=startAnimation()>开始动画</button>
+        </div>
+        <div class="input-item">
+            <button class="btn" onclick="drivingclear()">清除动画</button>
+        </div>
+    </div>
+    <script>
+        var map = new AMap.Map('container', {
+            viewMode: '3D',
+            zoom: 10,
+            center: [118.0,24.5]
+        })
+        map.on("complete", function () {
+            log.success("地图加载完成！");
+        })
+        //定义全局变量
+        var geojson = new AMap.GeoJSON({
+            geoJSON: null,
+        })
+        // 从local storage中读取数据
+function getData() {
+    //判断本地local storage中不存在数据
+    if (!localStorage.getItem('geojson')) {
+        localStorage.setItem('geojson', '[]')
+    }
+    return JSON.parse(localStorage.getItem('geojson'))
+}
+
+// 从local storage中写数据
+function saveData(data) {
+    localStorage.setItem('geojson', JSON.stringify(data))
+}
+        // 导入数据
+        if (JSON.stringify(getData()) != '[]') { // 判断local是否有数据
+            geojson.importData(getData()) //导入数据
+            geojson.eachOverlay(function (item) {
+                item.on('click', function (e) {
+                    var ext = item.getExtData()
+                    var click = ++ext._geoJsonProperties.click
+                    // console.log('旧的item点击'+click+'次')
+                    // 使用消息提示框
+                    var infowindow = new AMap.InfoWindow({
+                        anchor: 'top-center',//模板字符串
+                        content: `<div>打卡了${click}次</div>`,
+                    })
+                    // 打开信息窗
+                    infowindow.open(map, item.getPosition())
+                })
+                saveData(geojson.toGeoJSON())
+            })
+        }
+        map.add(geojson)   // 将geojson添加到地图
+
+        // 监听地图点击事件
+        map.on('click', function (e) {
+            console.log(e.lnglat)
+            var marker = new AMap.Marker({  // 创建标记
+                position: e.lnglat,
+                extData: {
+                    _geoJsonProperties: {
+                        gid: geojson.getOverlays().length + 1,
+                        click: 0,
+                    },
+                }
+            })
+            marker.on('click', function (e) { // 覆盖物的点击监听事件-只作用于新加点
+                var ext = marker.getExtData()
+                var click = ++ext._geoJsonProperties.click
+                // console.log('新的marker点击'+click+'次')
+                // 使用消息提示框
+                var infowindow = new AMap.InfoWindow({
+                    anchor: 'top-center',//模板字符串
+                    content: `<div>打卡了${click}次</div>`,
+                })
+                // 打开信息窗
+                infowindow.open(map, marker.getPosition())
+                saveData(geojson.toGeoJSON())
+            })
+
+            geojson.addOverlay(marker)     // 通过geojson对象管理覆盖物
+            saveData(geojson.toGeoJSON())  // 保存数据
+        })
+        const panel =document.querySelector('#panel')
+        function startAnimation() {
+            AMap.plugin(['AMap.Driving', 'AMap.Geocoder'], function () {
+                var driving = new AMap.Driving({
+                    map: map,
+                    panel: 'panel',
+                    policy: AMap.DrivingPolicy.LEAST_TIME,//驾车策略
+                })
+                var geocoder = new AMap.Geocoder({
+                    city: "厦门", //城市，默认：“全国”
+                });
+                
+                //获取用户输入的起点和终点
+                var startInput = document.getElementById('start').value;
+                var endInput = document.getElementById('end').value;
+
+                //将起点和终点名称转换为经纬度
+                geocoder.getLocation(startInput, function (status, result) {
+                    if (status === 'complete' && result.info === 'OK') {
+                        var start = result.geocodes[0].location;
+                        geocoder.getLocation(endInput, function (status, result) {
+                            if (status === 'complete' && result.info === 'OK') {
+                                var end = result.geocodes[0].location;
+
+                                // 创建途经点
+                                var opts = {
+                                    waypoints: [],
+                                }
+
+                                geojson.eachOverlay(function (item) {//拿到每一个点
+                                    opts.waypoints.push(item.getPosition())
+                                })
+
+                                driving.search(start, end, opts, function (status, result) {
+                                    //...省略其他代码
+                                    if (status == 'complete') {
+                                        // 实现轨迹的模拟
+                                        //console.log(result)
+                                        var lineArr = []
+                                        result.routes[0].steps.forEach(function (item) {
+                                            lineArr.push(...item.path)
+                                        });
+  
+
+                                        var passedPolyline = new AMap.Polyline({
+                                            map: map,
+                                            strokeColor: '#AF5',//描边的绿色
+                                            strokeWeight: 6,//线宽
+                                        })
+
+                                       
+                                    } else {
+                                        console.log('error')
+                                    }
+                                })
+                            }
+                        });
+                    }
+                });
+                panel.style.display='block'
+            })
+        }
+        function drivingclear() {
+            AMap.plugin(['AMap.Driving', 'AMap.Geocoder'], function () {
+                var driving = new AMap.Driving()
+                // 清除geojson数据
+                geojson.clearOverlays();
+                saveData(geojson.toGeoJSON());
+                
+                // 清除AMap.Driving的行车轨迹
+                driving.clear();
+                map.clearMap();
+                
+                panel.style.display='none'
+                   // 清除起始点
+                   document.getElementById('start').value = '';
+                document.getElementById('end').value = '';
+            })
+        }
+
+    </script>
+</body>
+
+</html>

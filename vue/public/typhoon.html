@@ -1,0 +1,658 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+  <title>台风</title>
+  <style>
+    html,
+    body,
+    #container {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  <style>
+    .taiFengYuJing {
+      position: fixed;
+      left: 0;
+      top: 50%;
+      width: 40px;
+      height: 200px;
+      background-color: #b4f0ff;
+      border: 1px solid #000;
+      font-size: 25px;
+      writing-mode: vertical-lr;
+      text-orientation: upright;
+      text-align: center;
+      user-select: none;
+    }
+
+    .taiFengYuJingTable {
+      position: fixed;
+      top: 50%;
+      left: 40px;
+      width: 500px;
+      height: 200px;
+      background-color: #ccf3fd;
+      text-align: center;
+      display: none;
+      border: 1px solid #000;
+    }
+
+    .taiFengYuJing.active+.taiFengYuJingTable {
+      display: block;
+    }
+
+    .Table {
+      position: relative;
+      top: 5%;
+      left: 0;
+      right: 0;
+      width: 500px;
+      height: 120px;
+      overflow: auto;
+      background-color: #e1f9ff;
+    }
+  </style>
+  <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css" />
+  <script
+    src="https://webapi.amap.com/maps?v=2.0&key=fe7910c62a3c2cffd9e83eea4c76228e&plugin=AMap.PolylineEditor"></script>
+  <script src="https://a.amap.com/jsapi_demos/static/demo-center/js/demoutils.js"></script>
+</head>
+
+<body>
+  <div id="container"></div><!--地图图层-->
+  <div class="taiFengYuJing" onclick="toggletaiFengYuJingTable()">台风</div>
+  <div class="taiFengYuJingTable">
+    年份:<input type="text" id="my-input" />
+    <button class="my-button" onclick="chaxun()">查询</button><!-- 将年份传递给查询台风数据的api -->
+
+    <div class="Table">
+      <table id="table" style="font-size: 14px;width: 100%;"><!-- 表格的数量要根据访问返回的数据量来定义，要不然定义一个巨大值 -->
+        <tr>
+          <td>台风id</td>
+          <td>台风名称</td>
+          <td>台风年份</td>
+          <td>台风是否活跃</td>
+          <td>预警路径</td>
+          <td>历史路径</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  <!-- 加载JSAPI脚本 -->
+  <script src="https://webapi.amap.com/maps?v=2.0&key=fe7910c62a3c2cffd9e83eea4c76228e"></script>
+  <script>
+    var map = new AMap.Map('container', {
+      viewMode: '2D', // 默认使用 2D 模式，如果希望使用带有俯仰角的 3D 模式，请设置 viewMode: '3D'
+      zoom: 5, // 初始化地图层级
+      center: [118.089425, 24.479833] // 初始化地图中心点
+    });
+
+    let inputyear = document.getElementById("my-input");//得到查询年份
+    console.log(inputyear);
+
+    //以下为窗口的显示与隐藏
+    let taiFengYuJingTable = document.querySelector('.taiFengYuJingTable');
+    function toggletaiFengYuJingTable() {
+      taiFengYuJingTable.style.display = (taiFengYuJingTable.style.display === 'none') ? 'block' : 'none';
+    }
+
+    //访问台风信息api所需参数
+    const url1 = "https://api.qweather.com/v7/tropical/storm-list";//台风信息
+    const hefengkey = "246414cb15134a8ba013f1a05b2f7464";
+    let InPutyear = 0;//改成用户输入的year
+    let oldInPutyear = -1;//用于判断输入年份是否变化
+    let xinxidata = {
+      basin: "NP",
+      year: InPutyear,
+      key: hefengkey,
+    };
+    let queryString1 = new URLSearchParams(xinxidata).toString();
+    let xinxiurl = `${url1}?${queryString1}`;//也可容易写成如右的形式：let xinxiurl = `${url1}?$basin=NP&year=${"InPutyear"}&key=${hefengkey}`;
+
+    function chaxun() {//每点击一次查询按钮，则会进行一次执行查询函数来访问台风数据api
+      InPutyear = Number(inputyear.value);
+      console.log(inputyear);
+      xinxidata.year = String(InPutyear);
+      queryString1 = new URLSearchParams(xinxidata).toString();
+      xinxiurl = `${url1}?${queryString1}`;
+
+      zhixingchaxun();//访问api,得到台风基础信息列表
+    }
+
+    //五年的台风信息,通过基础信息返回台风id
+    let array2023 = [];
+    let array2022 = [];
+    let array2021 = [];
+    let array2020 = [];
+    let array2019 = [];
+    let List = [];//重新定义一个数组，方便引用
+
+    let qingqiu = 0;//用于判断信息是否为空，若是空，则访问请求；若不是空，则不访问请求，直接使用
+    function zhixingchaxun() {
+      if (InPutyear !== oldInPutyear) {
+        if ((InPutyear === 2023 & array2023.length === 0) || (InPutyear === 2022 & array2022.length === 0) || (InPutyear === 2021 & array2021.length === 0) || (InPutyear === 2020 & array2020.length === 0) || (InPutyear === 2019 & array2019.length === 0)) {
+          qingqiu = 1;
+        } else {
+          qingqiu = 0;
+        }
+        if (qingqiu === 1) {
+          fetch(xinxiurl)
+            .then(response => response.arrayBuffer())
+            .then(arrayBuffer => {
+              // 将ArrayBuffer转换为Uint8Array
+              let uint8Array = new Uint8Array(arrayBuffer);
+              // 根据UTF-8编码规则生成字节序列
+              let utf8Bytes = [];
+              for (let i = 0; i < uint8Array.length; i++) {
+                utf8Bytes.push(uint8Array[i]);
+              }
+              // 将字节序列转换为字符串
+              let utf8String = new TextDecoder('utf-8').decode(new Uint8Array(utf8Bytes));
+              let getdata = JSON.parse(utf8String);
+              return getdata;
+            })
+            .then(getdata => {
+              if (getdata.code === "200") {
+                let updateTime1 = getdata.updateTime;//用于了解台风数据更新的时间
+
+                // 处理台风列表数据
+                let stormList = getdata.storm;
+                if (InPutyear == 2023) {
+                  array2023 = stormList;
+                  List = array2023;
+                  console.log(array2023)
+                } if (InPutyear == 2022) {
+                  array2022 = stormList;
+                  List = array2022;
+                  console.log(array2022)
+                } if (InPutyear == 2021) {
+                  array2021 = stormList;
+                  List = array2021;
+                  console.log(array2021)
+                } if (InPutyear == 2020) {
+                  array2020 = stormList;
+                  List = array2020;
+                  console.log(array2020)
+                } if (InPutyear == 2019) {
+                  array2019 = stormList;
+                  List = array2019;
+                  console.log(array2019)
+                }
+
+                addDataToTable(List);//动态创建表格
+
+                yujingshuzu();//创建预警二维数组
+                lishishuzu();//创建历史二维数组
+
+                makeline1();//创建高德预警路径的二维数组，方便显示与删除
+                makedian1();//创建高德预警圆形的二维数组，方便显示与删除
+                makechuang1();//创建高德预警台风信息窗体的二维数组，方便显示与删除
+
+                makeline2();//创建高德历史路径的二维数组，方便显示与删除
+                makedian2();//创建高德历史圆形的二维数组，方便显示与删除
+                makechuang2();//创建高德历史台风信息窗体的二维数组，方便显示与删除
+              } else {
+                console.log("请求失败");
+              }
+            })
+            .catch(error => {
+              console.log("请求出错", error);
+            });
+        }
+      }
+      oldInPutyear = InPutyear;
+      qingqiu = 0;
+    }
+
+    let stormId1 = 0; //根据复选框进行返回台风预报路径的id
+    let stormId2 = 0; //根据复选框进行返回台风历史路径的id
+    let index1 = -1;//返回预报信息的序列号
+    let index2 = -1;//返回历史信息的序列号
+
+    //这里有bug，因为id和序列号仅是“一个”变量
+    //如果复选框先后选中多个目标，则会先存储“后选中”的对象路径的id和序列号，这会导致前几个选中的id和序列号被覆盖
+    //解决方法有二：
+    //一是限制复选框的选中个数，这样可以一个一个的看台风路径；
+    //二是创建id二维数组和序列号二维数组，通过下标进行访问；
+    //但后者及其浪费，在此不采用
+
+    let Length1 = -1;//返回预报数组长度
+    let Length2 = -1;//返回历史数组长度
+    let activeCount = 0;//活跃台风个数
+
+    //通过访问Id返回下标，便于有序存储与查询
+    function getIndexById(id) {
+      let index = List.findIndex(obj => obj.id === id);
+      return index;
+    }
+
+    //依据数量动态创建表格 与 复选框选中画出台风路径
+    function addDataToTable(arr) {
+      let table = document.getElementById("table");
+
+      while (table.rows.length > 1) {
+        table.deleteRow(1);
+      }
+
+      for (let i = 0; i < arr.length; i++) {
+        let row = table.insertRow(i + 1);//插入新行
+        let idCell = row.insertCell(0);
+        let nameCell = row.insertCell(1);
+        let yearCell = row.insertCell(2);
+        let activeCell = row.insertCell(3);
+        let yubaoCell = row.insertCell(4);//预报路径
+        let lishiCell = row.insertCell(5);//历史路径
+
+        idCell.innerHTML = arr[i].id;
+        nameCell.innerHTML = arr[i].name;
+        yearCell.innerHTML = arr[i].year;
+        if (arr[i].isActive == 1) {//不可以严格等于，返回数据是字符串，小心出错
+          activeCell.innerHTML = "是";
+        } else { activeCell.innerHTML = "无"; }
+
+        if (arr[i].isActive == 1) {
+          let yubao = document.createElement("input");
+          yubao.type = "checkbox";//复选框
+          yubao.id = i + "checkbox";
+          yubao.setAttribute("onchange", "handleCheckboxChange1(" + i + ")");//绑定事件
+          yubaoCell.appendChild(yubao);//子节点lishi是checkbox类型，指向了父节点lishiCell，它是表格里的单元格元素
+        } else { yubaoCell.innerHTML = null; }
+
+        let lishi = document.createElement("input");
+        lishi.type = "checkbox";
+        lishi.id = "checkbox" + i;
+        lishi.setAttribute("onchange", "handleCheckboxChange2(" + i + ")");//绑定事件
+        lishiCell.appendChild(lishi);
+      }
+    }
+
+    let line1 = [];//高德对象 预警折线数组，方便引用
+    function makeline1() {
+      for (let i = 0; i < List.length; i++) {
+        if (line1.length >= List.length) {
+          break;
+        }
+        let newarray = -1;
+        line1.push(newarray);
+      }
+    }
+
+    let line2 = [];//高德对象 历史折线数组，方便引用
+    function makeline2() {
+      for (let i = 0; i < List.length; i++) {
+        if (line2.length >= List.length) {
+          break;
+        }
+        let newarray = -1;
+        line2.push(newarray);
+      }
+    }
+
+    let dian1 = [];//高德对象 预警圆形数组，方便引用
+    function makedian1() {
+      for (let i = 0; i < List.length; i++) {
+        if (dian1.length >= List.length) {
+          break;
+        }
+        let newarray = [-1];
+        dian1.push(newarray);
+      }
+    }
+
+    let dian2 = [];//高德对象 历史圆形数组，方便引用
+    function makedian2() {
+      for (let i = 0; i < List.length; i++) {
+        if (dian2.length >= List.length) {
+          break;
+        }
+        let newarray = [-1];
+        dian2.push(newarray);
+      }
+    }
+
+    let chuang1 = [];//高德对象 预警信息窗体数组，方便引用
+    function makechuang1() {
+      for (let i = 0; i < List.length; i++) {
+        if (chuang1.length >= List.length) {
+          break;
+        }
+        let newarray = [-1];
+        chuang1.push(newarray);
+      }
+    }
+
+    let chuang2 = [];//高德对象 预警信息窗体数组，方便引用
+    function makechuang2() {
+      for (let i = 0; i < List.length; i++) {
+        if (chuang2.length >= List.length) {
+          break;
+        }
+        let newarray = [-1];
+        chuang2.push(newarray);
+      }
+    }
+
+    function handleCheckboxChange1(index) {
+      var checkbox = document.getElementById(index + "checkbox");
+
+      if (checkbox.checked) {
+        console.log("复选框被选中");
+        stormId1 = List[index].id;//把台风id传出去
+        yubaodata.stormid = stormId1;
+        queryString2 = new URLSearchParams(yubaodata).toString();
+        yubaourl = `${url2}?${queryString2}`;
+
+        yubaochaxun();//预报api查询
+
+      } else {
+        console.log("复选框未被选中");
+        map.remove(line1[index1]);
+        map.remove(dian1[index1]);
+        map.remove(chuang1[index1]);
+      }
+    }
+
+    function handleCheckboxChange2(index) {
+      var checkbox = document.getElementById("checkbox" + index);
+
+      if (checkbox.checked) {
+        console.log("复选框被选中");
+        stormId2 = List[index].id;//把台风id传出去
+        lujingdata.stormid = stormId2;
+        queryString3 = new URLSearchParams(lujingdata).toString();
+        lujingurl = `${url3}?${queryString3}`;
+
+        lishichaxun();//历史api查询
+
+      } else {
+        console.log("复选框未被选中");
+        map.remove(line2[index2]);
+        map.remove(dian2[index2]);
+        map.remove(chuang2[index2]);
+      }
+    }
+
+    //访问台风预报api所需参数
+    const url2 = "https://api.qweather.com/v7/tropical/storm-forecast"; //台风预报
+    let yubaodata = {
+      stormid: stormId1,
+      key: hefengkey
+    };
+    let queryString2 = new URLSearchParams(yubaodata).toString();
+    let yubaourl = `${url2}?${queryString2}`;
+
+    //台风预警列表返回
+    let arrayyubao = []; //可将api返回的数据存储下来
+
+    function yujingshuzu() {
+      for (let i = 0; i < List.length; i++) {
+        let active = List[i].isActive;
+        if (active === "1") {
+          activeCount++;
+        }
+      }
+      for (let i = 0; i < activeCount; i++) {//二维数组
+        let newArray = [-1];// 创建新的数组
+        // 将新的数组添加到数组的末尾
+        arrayyubao.push(newArray);
+      }
+      console.log(arrayyubao);
+    }
+
+    function yubaochaxun() {//该函数在复选框选中时才运行
+      fetch(yubaourl)
+        .then(response => response.arrayBuffer())
+        .then(arrayBuffer => {
+          let uint8Array = new Uint8Array(arrayBuffer);
+          let utf8Bytes = [];
+          for (let i = 0; i < uint8Array.length; i++) {
+            utf8Bytes.push(uint8Array[i]);
+          }
+          let utf8String = new TextDecoder('utf-8').decode(new Uint8Array(utf8Bytes));
+          let getdata = JSON.parse(utf8String);
+          return getdata;
+        })
+        .then(getdata => {
+          if (getdata.code === "200") {
+            let updateTime2 = getdata.updateTime;
+            // 处理台风预报数据
+            index1 = getIndexById(stormId1);//得到选中复选框时传递进来的stormId1，并把序列号传递出去
+            arrayyubao[index1] = getdata.forecast;//在arrayyubao二维数组里，依据序列号，把访问的数据存进相对应的位置
+            Length1 = arrayyubao[index1].length;
+            //但是这里有漏洞，假如返回数据列表不以活跃的台风排在最前面，则会数据存储不完整
+            //因为我直接使用返回列表的下标作为存储的下标
+
+            lujing1shuzu();//该函数创建二维数组
+            lujing1zuobiao();//该函数利用上面二维数组得到坐标值
+
+            huaxian1();//高德折线添加
+            jiadian1();//高德圆形添加
+
+            console.log(arrayyubao);
+          } else {
+            console.log("请求失败");
+          }
+        })
+        .catch(error => {
+          console.log("请求出错", error);
+        });
+    }
+
+    //访问台风历史api所需参数
+    const url3 = "https://api.qweather.com/v7/tropical/storm-track"; //台风路径
+    let lujingdata = {
+      stormid: stormId2,
+      key: hefengkey
+    };
+    let queryString3 = new URLSearchParams(lujingdata).toString();
+    let lujingurl = `${url3}?${queryString3}`;
+
+    //台风历史列表返回
+    let arraylujing = []; //可将api返回的数据存储下来
+
+    function lishishuzu() {
+      for (let i = 0; i < List.length; i++) {
+        let newArray = [-1];//创建新的对象
+        arraylujing.push(newArray);
+      }
+      console.log(arraylujing);
+    }
+
+    function lishichaxun() {//该函数在复选框选中时才运行
+      fetch(lujingurl)
+        .then(response => response.arrayBuffer())
+        .then(arrayBuffer => {
+          let uint8Array = new Uint8Array(arrayBuffer);
+          let utf8Bytes = [];
+          for (let i = 0; i < uint8Array.length; i++) {
+            utf8Bytes.push(uint8Array[i]);
+          }
+          let utf8String = new TextDecoder('utf-8').decode(new Uint8Array(utf8Bytes));
+          let getdata = JSON.parse(utf8String);
+          return getdata;
+        })
+        .then(getdata => {
+          if (getdata.code === "200") {
+            let updateTime3 = getdata.updateTime;
+            // 处理台风历史数据
+            index2 = getIndexById(stormId2);//把序列号传递出去
+            if (getdata.now === undefined) {//此处是为了避免--实时访问活跃台风时--的数据为空或undifined，小心出错
+              arraylujing[index2] = [...getdata.track];
+            }
+            else { arraylujing[index2] = [...getdata.track, getdata.now] }
+            Length2 = arraylujing[index2].length;
+            //这里没有前面访问数据并存储数据时的漏洞
+
+            lujing2shuzu();//该函数创建二维数组
+            lujing2zuobiao();//该函数利用上面二维数组得到坐标值
+
+            huaxian2();//高德折线添加
+            jiadian2();//高德圆形添加
+
+            console.log(arraylujing);
+          } else {
+            console.log("请求失败");
+          }
+        })
+        .catch(error => {
+          console.log("请求出错", error);
+        });
+    }
+
+    let lujing1 = []//预报路径存储
+    let lujing2 = [];//历史路径存储
+
+    function lujing1shuzu() {//二维数组
+      for (let i = 0; i < activeCount; i++) {
+        if (lujing1.length >= activeCount) {
+          break;
+        }
+        let newArray = [-1];
+        lujing1.push(newArray);
+      }
+      console.log(lujing1);
+    }
+
+    function lujing2shuzu() {//二维数组
+      for (let i = 0; i < List.length; i++) {
+        if (lujing2.length >= List.length) {
+          break;
+        }
+        let newArray = [-1];
+        lujing2.push(newArray);
+      }
+      console.log(lujing2);
+    }
+
+    function lujing1zuobiao() {//预报路径坐标存储
+      for (let j = 0; j < Length1; j++) {
+        let Object = arrayyubao[index1][j];
+        let alon = Number(Object.lon);
+        let alat = Number(Object.lat);
+        lujing1[index1][j] = [alon, alat];;
+      }
+      console.log(lujing1);
+    }
+
+    function lujing2zuobiao() {//历史路径坐标存储
+      for (let j = 0; j < Length2; j++) {
+        let Object = arraylujing[index2][j];
+        let alon = Number(Object.lon);
+        let alat = Number(Object.lat);
+        lujing2[index2][j] = [alon, alat];
+      }
+      console.log(lujing2);
+    }
+
+    //折线参数
+    let line1style = {
+      path: lujing1,//路径
+      strokeColor: "red",//线的颜色
+      strokeOpacity: 0.8,//线的不透明度
+      strokeWeight: 7,//线宽
+      strokeStyle: "solid",//实线
+      lineJoin: 'round',//线的转折点连接方式
+      lineCap: 'round',//线的端点连接方式
+      zIndex: 50,//折线的图层层数，层数越高，越显示在上层
+    }
+    let line2style = {
+      path: lujing2,
+      strokeColor: "yellow",
+      strokeOpacity: 0.65,
+      strokeWeight: 7,
+      strokeStyle: "dashed",//虚线
+      strokeDasharray: [15, 5],//虚线的线段比例
+      lineJoin: 'round',
+      lineCap: 'round',
+      zIndex: 50,
+    }
+
+    //画线函数
+    function huaxian1() {
+      line2style.path = lujing1[index1];//坐标数组传递
+      let polyline1 = new AMap.Polyline(line2style);
+      line1[index1] = polyline1;
+      map.add(polyline1);
+    }
+
+    function huaxian2() {
+      line1style.path = lujing2[index2];//坐标数组传递
+      let polyline2 = new AMap.Polyline(line1style);
+      line2[index2] = polyline2;
+      map.add(polyline2);
+    }
+
+    //圆点参数
+    let center = [0, 0];
+    let circlestyle = {
+      center: center, //圆心
+      radius: 7, //半径
+      strokeOpacity: 1,
+      strokeWeight: 8,
+      strokeColor: "#e840f4",
+      fillOpacity: 1,
+      fillColor: '#e840f4',
+      zIndex: 50,
+    }
+
+    //位置加点 与 信息窗体函数
+    function jiadian1() {
+      for (let j = 0; j < Length1; j++) {
+        circlestyle.center = lujing1[index1][j];//坐标传递
+        let circle1 = new AMap.Circle(circlestyle);
+        dian1[index1][j] = circle1;
+        map.add(circle1);
+
+        let marker = new AMap.Marker({
+          icon: new AMap.Icon({ size: new AMap.Size(10, 10), image: "zise.png", imageSize: new AMap.Size(10, 10) }),
+          position: lujing1[index1][j],
+          map: map,
+          anchor: 'center'
+        });
+        marker.content = '预测时间:' + arrayyubao[index1][j].fxTime + '<br>' + '经度: ' + arrayyubao[index1][j].lon + '<br>' + '纬度: ' + arrayyubao[index1][j].lat + '<br>' + '压强:' + arrayyubao[index1][j].pressure + '百帕' + '<br>' + '风速:' + arrayyubao[index1][j].windSpeed + '米/秒' + '<br>' + '气旋类型:' + arrayyubao[index1][j].type;
+        marker.on('click', markerClick1);
+        marker.emit('click', { target: marker });
+        chuang1[index1][j] = marker;
+      }
+    }
+
+    let infoWindow1 = new AMap.InfoWindow({ anchor: 'top-center' });
+    function markerClick1(e) {
+      infoWindow1.setContent(e.target.content);
+      infoWindow1.open(map, e.target.getPosition());
+    }
+
+    function jiadian2() {
+      for (let j = 0; j < Length2; j++) {
+        circlestyle.center = lujing2[index2][j];//坐标传递
+        let circle2 = new AMap.Circle(circlestyle);
+        dian2[index2][j] = circle2;
+        map.add(circle2);
+
+        let marker = new AMap.Marker({
+          icon: new AMap.Icon({ size: new AMap.Size(10, 10), image: "zise.png", imageSize: new AMap.Size(10, 10) }),
+          position: lujing2[index2][j],
+          map: map,
+          anchor: 'center'
+        });
+        marker.content = '历史时间:' + arraylujing[index2][j].time + '<br>' + '经度: ' + arraylujing[index2][j].lon + '<br>' + '纬度: ' + arraylujing[index2][j].lat + '<br>' + '压强:' + arraylujing[index2][j].pressure + '百帕' + '<br>' + '风速:' + arraylujing[index2][j].windSpeed + '米/秒' + '<br>' + '移动速度:' + arraylujing[index2][j].moveSpeed + '千米/小时' + '<br>' + '气旋类型:' + arraylujing[index2][j].type;
+        marker.on('click', markerClick2);
+        marker.emit('click', { target: marker });
+        chuang2[index2][j] = marker;
+      }
+    }
+
+    var infoWindow2 = new AMap.InfoWindow({ anchor: 'top-center' });
+    function markerClick2(e) {
+      infoWindow2.setContent(e.target.content);
+      infoWindow2.open(map, e.target.getPosition());
+    }
+  </script>
+</body>
+
+</html>
